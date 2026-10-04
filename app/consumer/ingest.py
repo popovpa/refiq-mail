@@ -110,9 +110,27 @@ async def ingest(session: AsyncSession, raw: bytes, cipher: MailEventCipher) -> 
             )
         )
         metrics.inc(metrics.DUPLICATES)
+        _log_received(envelope, outcome="duplicate")
         return "duplicate"
     metrics.inc(metrics.RECEIVED)
+    _log_received(envelope, outcome="created")
     return "created"
+
+
+def _log_received(envelope: MailEnvelope, *, outcome: str) -> None:
+    logger.info(
+        "mail_send_request_received",
+        event_id=envelope.eventId,
+        event_type=envelope.eventType,
+        template_code=envelope.templateCode,
+        template_version=envelope.templateVersion,
+        idempotency_key=envelope.idempotencyKey,
+        source_type=envelope.source.type,
+        source_id=envelope.source.id,
+        request_id=envelope.requestId,
+        correlation_id=envelope.correlationId,
+        outcome=outcome,
+    )
 
 
 def _message_from_envelope(envelope: MailEnvelope) -> MailMessage:
@@ -152,6 +170,14 @@ async def handle_kafka_record(
             await session.commit()
         except PermanentIngestError as exc:
             await session.rollback()
+            logger.warning(
+                "mail_send_request_rejected",
+                topic=record.topic,
+                partition=record.partition,
+                offset=record.offset,
+                error_code=exc.code,
+                error_message=exc.message,
+            )
             await dlq.publish(
                 key=record.key,
                 value=dlq_body(record, code=exc.code, message=exc.message),

@@ -2,7 +2,7 @@
 set -e
 
 if [ "${1:-}" = "consumer" ]; then
-  exec python -m app.workers.kafka_consumer
+  exec python -u -m app.workers.kafka_consumer
 fi
 
 if [ "${1:-}" = "worker" ]; then

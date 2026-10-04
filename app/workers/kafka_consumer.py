@@ -74,6 +74,12 @@ async def _run() -> None:
                 key=message.key,
                 value=message.value,
             )
+            logger.info(
+                "mail_kafka_message_received",
+                topic=record.topic,
+                partition=record.partition,
+                offset=record.offset,
+            )
             while not stop.is_set():
                 try:
                     outcome = await handle_kafka_record(
@@ -92,6 +98,13 @@ async def _run() -> None:
                     )
                     outcome = "retry"
                 if outcome != "retry":
+                    logger.info(
+                        "mail_kafka_message_processed",
+                        topic=record.topic,
+                        partition=record.partition,
+                        offset=record.offset,
+                        outcome=outcome,
+                    )
                     break
                 logger.warning(
                     "mail_consumer_retry",

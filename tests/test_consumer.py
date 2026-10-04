@@ -106,11 +106,20 @@ def _metrics():
 
 @pytest.mark.asyncio
 async def test_valid_confirmation_and_reset_are_queued():
+    from structlog.testing import capture_logs
+
     offsets = RecordingOffsets()
     dlq = RecordingDlq()
-    await handle_kafka_record(
-        TestingSessionLocal, record(envelope()), cipher=cipher(), offsets=offsets, dlq=dlq
-    )
+    with capture_logs() as captured:
+        await handle_kafka_record(
+            TestingSessionLocal, record(envelope()), cipher=cipher(), offsets=offsets, dlq=dlq
+        )
+    events = [item["event"] for item in captured]
+    assert "mail_send_request_received" in events
+    logged = json.dumps(captured, default=str)
+    assert EMAIL not in logged
+    assert "plaintext-token" not in logged
+    assert CONFIRM_URL not in logged
     reset = envelope(
         event_id="evt-2",
         idempotency_key="password-reset:9",
